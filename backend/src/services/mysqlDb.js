@@ -139,14 +139,24 @@ export async function initMySQL() {
   const database = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'medconnect';
   const port = Number(process.env.MYSQLPORT || process.env.MYSQL_PORT || process.env.DB_PORT || 3306);
 
+  console.log('🔍 Database Environment Variable Inspection:', {
+    has_MYSQL_URL: !!process.env.MYSQL_URL,
+    has_DATABASE_URL: !!process.env.DATABASE_URL,
+    has_MYSQLPRIVATEURL: !!process.env.MYSQLPRIVATEURL,
+    MYSQLHOST: process.env.MYSQLHOST || process.env.MYSQL_HOST || 'NOT_SET',
+    MYSQLPORT: process.env.MYSQLPORT || process.env.MYSQL_PORT || 'NOT_SET',
+    MYSQLUSER: process.env.MYSQLUSER || process.env.MYSQL_USER || 'NOT_SET',
+    MYSQLDATABASE: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || 'NOT_SET'
+  });
+
   try {
     const mysql = (await import('mysql2/promise')).default;
 
     if (connectionUrl) {
-      console.log('🔄 Attempting MySQL connection via connection string URL...');
+      console.log('🔄 Connecting to MySQL via connection URL string...');
       pool = mysql.createPool(connectionUrl);
     } else {
-      console.log(`🔄 Attempting MySQL connection to host ${host}:${port}, db ${database}, user ${user}...`);
+      console.log(`🔄 Connecting to MySQL host ${host}:${port}, database ${database}, user ${user}...`);
       pool = mysql.createPool({
         host,
         user,
@@ -168,7 +178,7 @@ export async function initMySQL() {
     await createTables();
     return true;
   } catch (err) {
-    console.warn('⚠️ MySQL Connection Error:', err.message);
+    console.warn('⚠️ MySQL Connection Error:', err.code || err.message || err);
     console.log('⚡ Operating with high-performance DB fallback store');
     isConnected = false;
     return false;
