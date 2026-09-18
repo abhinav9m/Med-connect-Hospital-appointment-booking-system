@@ -132,19 +132,21 @@ export const memoryStore = {
 };
 
 export async function initMySQL() {
-  const connectionUrl = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.MYSQLPRIVATEURL;
-  const host = process.env.MYSQLHOST || process.env.DB_HOST || 'localhost';
-  const user = process.env.MYSQLUSER || process.env.DB_USER || 'root';
-  const password = process.env.MYSQLPASSWORD || process.env.MYSQL_ROOT_PASSWORD || process.env.DB_PASSWORD || '';
-  const database = process.env.MYSQLDATABASE || process.env.DB_NAME || 'medconnect';
-  const port = Number(process.env.MYSQLPORT || process.env.DB_PORT || 3306);
+  const connectionUrl = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.MYSQLPRIVATEURL || process.env.MYSQL_PRIVATE_URL;
+  const host = process.env.MYSQLHOST || process.env.MYSQL_HOST || process.env.DB_HOST || 'localhost';
+  const user = process.env.MYSQLUSER || process.env.MYSQL_USER || process.env.DB_USER || 'root';
+  const password = process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || process.env.MYSQL_ROOT_PASSWORD || process.env.DB_PASSWORD || '';
+  const database = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'medconnect';
+  const port = Number(process.env.MYSQLPORT || process.env.MYSQL_PORT || process.env.DB_PORT || 3306);
 
   try {
     const mysql = (await import('mysql2/promise')).default;
 
     if (connectionUrl) {
+      console.log('🔄 Attempting MySQL connection via connection string URL...');
       pool = mysql.createPool(connectionUrl);
     } else {
+      console.log(`🔄 Attempting MySQL connection to host ${host}:${port}, db ${database}, user ${user}...`);
       pool = mysql.createPool({
         host,
         user,
@@ -160,13 +162,14 @@ export async function initMySQL() {
     const conn = await pool.getConnection();
     conn.release();
 
-    console.log('✅ Connected to MySQL Database!');
+    console.log('✅ CONNECTED TO MYSQL DATABASE SUCCESSFULLY!');
     isConnected = true;
 
     await createTables();
     return true;
   } catch (err) {
-    console.log('⚡ MySQL database initialized. (Operating with DB fallback store if MySQL daemon is offline)');
+    console.warn('⚠️ MySQL Connection Error:', err.message);
+    console.log('⚡ Operating with high-performance DB fallback store');
     isConnected = false;
     return false;
   }
@@ -245,6 +248,19 @@ async function createTables() {
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Seed initial doctors into MySQL if empty
+    const [docRows] = await pool.query('SELECT COUNT(*) as count FROM doctors');
+    if (docRows[0].count === 0) {
+      for (const doc of memoryStore.doctors) {
+        await pool.query(
+          `INSERT INTO doctors (id, name, specialty, experience, rating, reviewsCount, hospital, fee, education, about, languages, location, availableToday)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [doc.id, doc.name, doc.specialty, doc.experience, doc.rating, doc.reviewsCount, doc.hospital, doc.fee, doc.education, doc.about, doc.languages, doc.location, doc.availableToday]
+        );
+      }
+      console.log('✅ Initial doctors seeded into MySQL database');
+    }
 
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', ['abhinav1@gmail.com']);
     if (rows.length === 0) {
