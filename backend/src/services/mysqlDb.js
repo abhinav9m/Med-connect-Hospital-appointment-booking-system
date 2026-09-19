@@ -131,58 +131,80 @@ export const memoryStore = {
   ]
 };
 
-export async function initMySQL() {
+export async function initMySQL(retries = 5, delayMs = 3000) {
   const connectionUrl = process.env.MYSQL_URL || process.env.DATABASE_URL || process.env.MYSQLPRIVATEURL || process.env.MYSQL_PRIVATE_URL;
-  const host = process.env.MYSQLHOST || process.env.MYSQL_HOST || process.env.DB_HOST || 'localhost';
+  const host = process.env.MYSQLHOST || process.env.MYSQL_HOST || process.env.DB_HOST;
   const user = process.env.MYSQLUSER || process.env.MYSQL_USER || process.env.DB_USER || 'root';
   const password = process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || process.env.MYSQL_ROOT_PASSWORD || process.env.DB_PASSWORD || '';
   const database = process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'medconnect';
   const port = Number(process.env.MYSQLPORT || process.env.MYSQL_PORT || process.env.DB_PORT || 3306);
 
-  console.log('🔍 Database Environment Variable Inspection:', {
+  console.log('🔍 Database Environment Inspection:', {
     has_MYSQL_URL: !!process.env.MYSQL_URL,
     has_DATABASE_URL: !!process.env.DATABASE_URL,
     has_MYSQLPRIVATEURL: !!process.env.MYSQLPRIVATEURL,
-    MYSQLHOST: process.env.MYSQLHOST || process.env.MYSQL_HOST || 'NOT_SET',
-    MYSQLPORT: process.env.MYSQLPORT || process.env.MYSQL_PORT || 'NOT_SET',
-    MYSQLUSER: process.env.MYSQLUSER || process.env.MYSQL_USER || 'NOT_SET',
-    MYSQLDATABASE: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || 'NOT_SET'
+    MYSQLHOST: host || 'NOT_SET',
+    MYSQLPORT: port,
+    MYSQLUSER: user,
+    MYSQLDATABASE: database
   });
 
-  try {
-    const mysql = (await import('mysql2/promise')).default;
-
-    if (connectionUrl) {
-      console.log('🔄 Connecting to MySQL via connection URL string...');
-      pool = mysql.createPool(connectionUrl);
-    } else {
-      console.log(`🔄 Connecting to MySQL host ${host}:${port}, database ${database}, user ${user}...`);
-      pool = mysql.createPool({
-        host,
-        user,
-        password,
-        database,
-        port,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-      });
-    }
-
-    const conn = await pool.getConnection();
-    conn.release();
-
-    console.log('✅ CONNECTED TO MYSQL DATABASE SUCCESSFULLY!');
-    isConnected = true;
-
-    await createTables();
-    return true;
-  } catch (err) {
-    console.warn('⚠️ MySQL Connection Error:', err.code || err.message || err);
-    console.log('⚡ Operating with high-performance DB fallback store');
+  if (!connectionUrl && !host) {
+    console.log('⚡ No MySQL host or connection URL configured. Operating with high-performance DB fallback store.');
     isConnected = false;
     return false;
   }
+
+  const mysql = (await import('mysql2/promise')).default;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (connectionUrl) {
+        console.log(`🔄 Attempt ${attempt}/${retries}: Connecting to MySQL via URL...`);
+        pool = mysql.createPool({
+          uri: connectionUrl,
+          waitForConnections: true,
+          connectionLimit: 10,
+          connectTimeout: 10000,
+          ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+        });
+      } else {
+        console.log(`🔄 Attempt ${attempt}/${retries}: Connecting to MySQL host ${host}:${port}, database ${database}...`);
+        pool = mysql.createPool({
+          host,
+          user,
+          password,
+          database,
+          port,
+          waitForConnections: true,
+          connectionLimit: 10,
+          connectTimeout: 10000,
+          ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined
+        });
+      }
+
+      const conn = await pool.getConnection();
+      conn.release();
+
+      console.log('✅ CONNECTED TO MYSQL DATABASE SUCCESSFULLY!');
+      isConnected = true;
+
+      await createTables();
+      return true;
+    } catch (err) {
+      console.warn(`⚠️ MySQL Connection Attempt ${attempt} Failed:`, err.code || err.message || err);
+      if (attempt < retries) {
+        console.log(`⏳ Waiting ${delayMs / 1000}s before retrying MySQL connection...`);
+        await new Promise(res => setTimeout(res, delayMs));
+      } else {
+        console.log('⚡ All MySQL connection attempts exhausted. Operating with high-performance DB fallback store.');
+        isConnected = false;
+        return false;
+      }
+    }
+  }
+
+  return false;
 }
 
 async function createTables() {
