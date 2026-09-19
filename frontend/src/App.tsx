@@ -1528,25 +1528,6 @@ export default function App(){
               </button>
             </div>
 
-            {/* Admin Credentials Info Banner */}
-            {authRole === 'admin' && (
-              <div className="p-3.5 rounded-2xl bg-teal-50/80 border border-teal-200/80 text-teal-950 text-xs mb-4 space-y-1 shadow-sm">
-                <div className="flex items-center gap-2 font-black text-teal-800">
-                  <ShieldCheck className="w-4 h-4 text-[#0E7C8C]" />
-                  <span>Master Admin Portal Sign In Credentials</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 pt-1 font-medium">
-                  <div>
-                    <span className="text-[10px] text-teal-700 uppercase tracking-wider block font-bold">Email</span>
-                    <strong className="font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-teal-200 inline-block font-bold">abhinav1@gmail.com</strong>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-teal-700 uppercase tracking-wider block font-bold">Password</span>
-                    <strong className="font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-teal-200 inline-block font-bold">12345</strong>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Mode Switcher (Sign In vs Register) */}
             {authRole !== 'admin' && (
