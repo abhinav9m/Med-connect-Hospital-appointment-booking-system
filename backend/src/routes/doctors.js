@@ -1,4 +1,6 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import Doctor from '../models/Doctor.js';
 import { protect, authorize, optionalAuth } from '../middleware/auth.js';
 import { isMysqlConnected, dbQuery, memoryStore } from '../services/mysqlDb.js';
 
@@ -8,6 +10,36 @@ const router = express.Router();
 router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const { specialty, location, q, minRating, sortBy } = req.query;
+
+    if (mongoose.connection.readyState === 1) {
+      let query = {};
+      if (specialty && specialty !== 'All' && specialty !== 'All Specialties') {
+        query.specialty = specialty;
+      }
+      if (location && location !== 'All') {
+        query.location = new RegExp(location, 'i');
+      }
+      if (minRating) {
+        query.rating = { $gte: parseFloat(minRating) };
+      }
+      if (q) {
+        const searchRegex = new RegExp(q, 'i');
+        query.$or = [
+          { name: searchRegex },
+          { specialty: searchRegex },
+          { hospital: searchRegex },
+          { location: searchRegex }
+        ];
+      }
+
+      let sortOptions = { rating: -1 };
+      if (sortBy === 'experience') sortOptions = { experience: -1 };
+      if (sortBy === 'feeAsc') sortOptions = { fee: 1 };
+      if (sortBy === 'feeDesc') sortOptions = { fee: -1 };
+
+      const doctors = await Doctor.find(query).sort(sortOptions);
+      return res.json(doctors);
+    }
 
     if (isMysqlConnected()) {
       let sql = 'SELECT * FROM doctors WHERE 1=1';
@@ -71,6 +103,14 @@ router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    if (mongoose.connection.readyState === 1) {
+      let doc = await Doctor.findOne({ id });
+      if (!doc && mongoose.Types.ObjectId.isValid(id)) {
+        doc = await Doctor.findById(id);
+      }
+      if (doc) return res.json(doc);
+    }
+
     if (isMysqlConnected()) {
       const rows = await dbQuery('SELECT * FROM doctors WHERE id = ?', [id]);
       if (rows.length > 0) return res.json(rows[0]);
@@ -99,10 +139,16 @@ router.post('/', protect, authorize('admin'), async (req, res, next) => {
       fee: Number(req.body.fee) || 800,
       education: req.body.education || 'MBBS / MD',
       about: req.body.about || 'Experienced healthcare specialist.',
-      languages: Array.isArray(req.body.languages) ? req.body.languages.join(', ') : (req.body.languages || 'English, Hindi'),
+      languages: Array.isArray(req.body.languages) ? req.body.languages : (typeof req.body.languages === 'string' ? req.body.languages.split(', ') : ['English', 'Hindi']),
       location: req.body.location || 'Delhi',
       availableToday: Number(req.body.availableToday) || 5
     };
+
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Doctor.create(docData);
+      memoryStore.doctors.push(docData);
+      return res.status(201).json({ success: true, data: doc });
+    }
 
     if (isMysqlConnected()) {
       await dbQuery(
@@ -110,7 +156,7 @@ router.post('/', protect, authorize('admin'), async (req, res, next) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           docData.id, docData.name, docData.specialty, docData.experience, docData.rating, docData.reviewsCount,
-          docData.hospital, docData.fee, docData.education, docData.about, docData.languages, docData.location, docData.availableToday
+          docData.hospital, docData.fee, docData.education, docData.about, Array.isArray(docData.languages) ? docData.languages.join(', ') : docData.languages, docData.location, docData.availableToday
         ]
       );
       memoryStore.doctors.push(docData);
@@ -128,9 +174,14 @@ router.post('/', protect, authorize('admin'), async (req, res, next) => {
 router.put('/:id', protect, authorize('admin', 'doctor'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { availableToday, fee, hospital, about, specialty, experience, location } = req.body;
+
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Doctor.findOneAndUpdate({ id }, req.body, { new: true });
+      if (doc) return res.json({ success: true, data: doc });
+    }
 
     if (isMysqlConnected()) {
+      const { availableToday, fee, hospital, about, specialty, experience, location } = req.body;
       let updates = [];
       let params = [];
 
@@ -167,6 +218,10 @@ router.put('/:id', protect, authorize('admin', 'doctor'), async (req, res, next)
 router.delete('/:id', protect, authorize('admin'), async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (mongoose.connection.readyState === 1) {
+      await Doctor.findOneAndDelete({ id });
+    }
 
     if (isMysqlConnected()) {
       await dbQuery('DELETE FROM doctors WHERE id = ?', [id]);

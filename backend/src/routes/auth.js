@@ -1,6 +1,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import User from '../models/User.js';
+import Doctor from '../models/Doctor.js';
 import { protect } from '../middleware/auth.js';
 import { isMysqlConnected, dbQuery, memoryStore } from '../services/mysqlDb.js';
 
@@ -61,13 +64,42 @@ router.post('/register', async (req, res, next) => {
         fee: Number(fee) || 800,
         education: education || 'MD / MBBS',
         about: about || `${name} is a dedicated healthcare specialist.`,
-        languages: 'English, Hindi',
+        languages: ['English', 'Hindi'],
         location: location || 'Delhi',
         availableToday: 6
       };
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // MongoDB Atlas execution
+    if (mongoose.connection.readyState === 1) {
+      const existingUser = await User.findOne({ email: cleanEmail });
+      if (existingUser) {
+        return res.status(400).json({ success: false, error: 'An account with this email already exists' });
+      }
+
+      if (doctorProfile) {
+        await Doctor.create(doctorProfile);
+        memoryStore.doctors.push(doctorProfile);
+      }
+
+      const user = await User.create({
+        name,
+        email: cleanEmail,
+        password: hashedPassword,
+        role: targetRole,
+        phone,
+        specialty,
+        hospital,
+        doctorId: createdDoctorId
+      });
+
+      const token = generateToken(user);
+      const userRes = user.toJSON();
+
+      return res.status(201).json({ success: true, token, user: userRes });
+    }
 
     // MySQL Storage
     if (isMysqlConnected()) {
@@ -83,7 +115,7 @@ router.post('/register', async (req, res, next) => {
           [
             doctorProfile.id, doctorProfile.name, doctorProfile.specialty, doctorProfile.experience,
             0.0, 0, doctorProfile.hospital, doctorProfile.fee, doctorProfile.education,
-            doctorProfile.about, doctorProfile.languages, doctorProfile.location, doctorProfile.availableToday
+            doctorProfile.about, Array.isArray(doctorProfile.languages) ? doctorProfile.languages.join(', ') : doctorProfile.languages, doctorProfile.location, doctorProfile.availableToday
           ]
         );
         memoryStore.doctors.push(doctorProfile);
@@ -144,6 +176,24 @@ router.post('/login', async (req, res, next) => {
 
     const cleanEmail = email.toLowerCase().trim();
 
+    // Mongo execution
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findOne({ email: cleanEmail }).select('+password');
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+
+      const token = generateToken(user);
+      const userRes = user.toJSON();
+
+      return res.json({ success: true, token, user: userRes });
+    }
+
     // MySQL Storage
     if (isMysqlConnected()) {
       const rows = await dbQuery('SELECT * FROM users WHERE email = ?', [cleanEmail]);
@@ -186,12 +236,14 @@ router.post('/login', async (req, res, next) => {
 // GET /api/auth/me
 router.get('/me', protect, async (req, res, next) => {
   try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user.id);
+      if (user) return res.json({ success: true, user });
+    }
+
     if (isMysqlConnected()) {
       const rows = await dbQuery('SELECT id, name, email, role, phone, specialty, hospital, doctorId, createdAt FROM users WHERE id = ?', [req.user.id]);
-      if (rows.length === 0) {
-        return res.status(404).json({ success: false, error: 'User not found' });
-      }
-      return res.json({ success: true, user: rows[0] });
+      if (rows.length > 0) return res.json({ success: true, user: rows[0] });
     }
 
     const user = memoryStore.users.find(u => u.id === req.user.id || u.email === req.user.email);

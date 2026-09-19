@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -13,8 +15,13 @@ import appointmentRoutes from './routes/appointments.js';
 import adminRoutes from './routes/admin.js';
 import reviewRoutes from './routes/reviews.js';
 
+import User from './models/User.js';
+import Doctor from './models/Doctor.js';
+import Appointment from './models/Appointment.js';
+import Review from './models/Review.js';
+
 import { notFound, errorHandler } from './middleware/errorHandler.js';
-import { initMySQL, isMysqlConnected } from './services/mysqlDb.js';
+import { initMySQL, isMysqlConnected, memoryStore } from './services/mysqlDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -43,13 +50,14 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Med connect-Hospital appointment booking system API',
+    mongoConnected: mongoose.connection.readyState === 1,
     mysqlConnected: isMysqlConnected(),
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
 });
 
-// Resolve frontend production build path for local dev & Railway Docker
+// Resolve frontend static assets
 const candidatePaths = [
   path.join(__dirname, '../../frontend/dist'),
   path.join(__dirname, '../frontend/dist'),
@@ -57,7 +65,6 @@ const candidatePaths = [
 ];
 
 let frontendDistPath = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
-
 app.use(express.static(frontendDistPath));
 
 app.get('*', (req, res, next) => {
@@ -77,5 +84,43 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, async () => {
   console.log(`🚀 Med connect-Hospital appointment booking system API running on port ${PORT}`);
-  await initMySQL();
+
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+  if (mongoUri) {
+    try {
+      console.log('🔄 Connecting to MongoDB Atlas...');
+      await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+      console.log('✅ CONNECTED TO MONGODB ATLAS SUCCESSFULLY!');
+
+      // Seed initial doctors & admin if empty in MongoDB Atlas
+      const docCount = await Doctor.countDocuments();
+      if (docCount === 0) {
+        for (const doc of memoryStore.doctors) {
+          await Doctor.create(doc);
+        }
+        console.log('✅ Seeded initial doctors into MongoDB Atlas');
+      }
+
+      const adminUser = await User.findOne({ email: 'abhinav1@gmail.com' });
+      if (!adminUser) {
+        const passHash = await bcrypt.hash('12345', 10);
+        await User.create({
+          name: 'Abhinav',
+          email: 'abhinav1@gmail.com',
+          password: passHash,
+          role: 'admin',
+          phone: '+91 99000 00000'
+        });
+        console.log('✅ Default Abhinav Admin created in MongoDB Atlas');
+      }
+
+    } catch (err) {
+      console.warn('⚠️ MongoDB Atlas Connection Error:', err.message);
+      console.log('⚡ Attempting MySQL / Fallback DB initialization...');
+      await initMySQL();
+    }
+  } else {
+    await initMySQL();
+  }
 });

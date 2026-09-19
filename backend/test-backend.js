@@ -1,6 +1,6 @@
 import http from 'http';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = 'http://127.0.0.1:5000';
 
 function request(method, path, body = null, token = null) {
   return new Promise((resolve, reject) => {

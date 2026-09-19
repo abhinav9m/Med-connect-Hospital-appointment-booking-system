@@ -1,4 +1,7 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import Appointment from '../models/Appointment.js';
+import Doctor from '../models/Doctor.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 import { isMysqlConnected, dbQuery, memoryStore } from '../services/mysqlDb.js';
 
@@ -19,11 +22,47 @@ router.post('/book', optionalAuth, async (req, res, next) => {
     const apptId = 'ap-' + Date.now();
     let docName = 'Medical Specialist';
 
+    // MongoDB Atlas Execution
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Doctor.findOne({ id: doctorId });
+      if (doc) docName = doc.name;
+
+      const existing = await Appointment.findOne({ doctorId, date, time, status: { $ne: 'cancelled' } });
+      if (existing) {
+        return res.status(409).json({ 
+          success: false, 
+          error: 'This slot is already booked for the selected doctor. Please choose another time.' 
+        });
+      }
+
+      const saved = await Appointment.create({
+        id: apptId,
+        doctorId,
+        doctorName: docName,
+        patientEmail: patientEmail.toLowerCase().trim(),
+        patientName,
+        patientPhone: patientPhone || '',
+        date,
+        time,
+        status: 'upcoming',
+        type: type || 'In-person',
+        age: age || '30',
+        gender: gender || 'Not specified',
+        problem: problem || 'General Consultation',
+        fee: Number(fee) || 800,
+        payment: payment || 'Paid via Card',
+        notes: '',
+        prescription: ''
+      });
+
+      return res.status(201).json({ success: true, data: saved });
+    }
+
+    // MySQL Execution
     if (isMysqlConnected()) {
       const docs = await dbQuery('SELECT name FROM doctors WHERE id = ?', [doctorId]);
       if (docs.length > 0) docName = docs[0].name;
 
-      // Check slot collision
       const existing = await dbQuery(
         'SELECT id FROM appointments WHERE doctorId = ? AND date = ? AND time = ? AND status != ?',
         [doctorId, date, time, 'cancelled']
@@ -70,7 +109,7 @@ router.post('/book', optionalAuth, async (req, res, next) => {
       return res.status(201).json({ success: true, data: newAppt });
     }
 
-    // In-memory check collision
+    // In-memory fallback
     const doc = memoryStore.doctors.find(d => d.id === doctorId);
     if (doc) docName = doc.name;
 
@@ -116,6 +155,17 @@ router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const { email, doctorId, status, date } = req.query;
 
+    if (mongoose.connection.readyState === 1) {
+      let query = {};
+      if (email) query.patientEmail = email.toLowerCase().trim();
+      if (doctorId) query.doctorId = doctorId;
+      if (status) query.status = status;
+      if (date) query.date = date;
+
+      const docs = await Appointment.find(query).sort({ createdAt: -1 });
+      return res.json(docs);
+    }
+
     if (isMysqlConnected()) {
       let sql = 'SELECT * FROM appointments WHERE 1=1';
       const params = [];
@@ -147,6 +197,11 @@ router.get('/my/:email', async (req, res, next) => {
   try {
     const cleanEmail = req.params.email.toLowerCase().trim();
 
+    if (mongoose.connection.readyState === 1) {
+      const docs = await Appointment.find({ patientEmail: cleanEmail }).sort({ createdAt: -1 });
+      return res.json(docs);
+    }
+
     if (isMysqlConnected()) {
       const rows = await dbQuery('SELECT * FROM appointments WHERE patientEmail = ? ORDER BY createdAt DESC', [cleanEmail]);
       return res.json(rows);
@@ -164,6 +219,11 @@ router.get('/doctor/:doctorId', async (req, res, next) => {
   try {
     const { doctorId } = req.params;
 
+    if (mongoose.connection.readyState === 1) {
+      const docs = await Appointment.find({ doctorId }).sort({ createdAt: -1 });
+      return res.json(docs);
+    }
+
     if (isMysqlConnected()) {
       const rows = await dbQuery('SELECT * FROM appointments WHERE doctorId = ? ORDER BY createdAt DESC', [doctorId]);
       return res.json(rows);
@@ -180,6 +240,10 @@ router.get('/doctor/:doctorId', async (req, res, next) => {
 router.patch('/:id/cancel', async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (mongoose.connection.readyState === 1) {
+      await Appointment.findOneAndUpdate({ id }, { status: 'cancelled' });
+    }
 
     if (isMysqlConnected()) {
       await dbQuery('UPDATE appointments SET status = ? WHERE id = ?', ['cancelled', id]);
@@ -204,6 +268,10 @@ router.patch('/:id/status', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid appointment status' });
     }
 
+    if (mongoose.connection.readyState === 1) {
+      await Appointment.findOneAndUpdate({ id }, { status });
+    }
+
     if (isMysqlConnected()) {
       await dbQuery('UPDATE appointments SET status = ? WHERE id = ?', [status, id]);
     }
@@ -222,6 +290,15 @@ router.patch('/:id/clinical', protect, async (req, res, next) => {
   try {
     const { id } = req.params;
     const { notes, prescription } = req.body;
+
+    if (mongoose.connection.readyState === 1) {
+      const updated = await Appointment.findOneAndUpdate(
+        { id }, 
+        { notes: notes || '', prescription: prescription || '', status: 'completed' },
+        { new: true }
+      );
+      if (updated) return res.json({ success: true, data: updated });
+    }
 
     if (isMysqlConnected()) {
       await dbQuery(

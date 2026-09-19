@@ -1,4 +1,7 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import Review from '../models/Review.js';
+import Doctor from '../models/Doctor.js';
 import { protect } from '../middleware/auth.js';
 import { isMysqlConnected, dbQuery, memoryStore } from '../services/mysqlDb.js';
 
@@ -17,6 +20,39 @@ router.post('/', protect, async (req, res, next) => {
     const reviewId = 'rev-' + Date.now();
     const patientEmail = req.user.email;
     const patientName = req.user.name;
+
+    // MongoDB Atlas
+    if (mongoose.connection.readyState === 1) {
+      let existing = await Review.findOne({ appointmentId });
+      if (existing) {
+        existing.rating = numRating;
+        existing.comment = comment || '';
+        await existing.save();
+      } else {
+        await Review.create({
+          id: reviewId,
+          appointmentId,
+          doctorId,
+          patientEmail,
+          patientName,
+          rating: numRating,
+          comment: comment || ''
+        });
+      }
+
+      // Recalculate doctor rating
+      const docReviews = await Review.find({ doctorId });
+      if (docReviews.length > 0) {
+        const total = docReviews.reduce((sum, r) => sum + Number(r.rating), 0);
+        const avg = parseFloat((total / docReviews.length).toFixed(1));
+        await Doctor.findOneAndUpdate(
+          { id: doctorId },
+          { rating: avg, reviews: docReviews.length, reviewsCount: docReviews.length }
+        );
+      }
+
+      return res.status(201).json({ success: true, message: 'Thank you for your review!' });
+    }
 
     if (isMysqlConnected()) {
       await dbQuery(
@@ -75,6 +111,11 @@ router.post('/', protect, async (req, res, next) => {
 router.get('/doctor/:doctorId', async (req, res, next) => {
   try {
     const { doctorId } = req.params;
+
+    if (mongoose.connection.readyState === 1) {
+      const reviews = await Review.find({ doctorId }).sort({ createdAt: -1 });
+      return res.json({ success: true, reviews });
+    }
 
     if (isMysqlConnected()) {
       const reviews = await dbQuery('SELECT * FROM reviews WHERE doctorId = ? ORDER BY createdAt DESC', [doctorId]);
