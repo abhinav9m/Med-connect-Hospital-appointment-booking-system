@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Users, FileText, DollarSign, TrendingUp,
   Video, Building2, ShieldCheck, Award, Timer, Sparkles,
   AlertCircle, Upload, File, CheckCircle2, XCircle, Clock3,
-  Plus, Trash2, Edit3, Pill, ClipboardList, RefreshCw, Printer, Shield, UserCheck, MessageSquare, Briefcase, GraduationCap, Globe
+  Plus, Trash2, Edit3, Pill, ClipboardList, RefreshCw, Printer, Shield, UserCheck, MessageSquare, Briefcase, GraduationCap, Globe, Mail, Lock
 } from 'lucide-react';
 
 // Types
@@ -172,6 +172,7 @@ export default function App(){
   const [authExperience, setAuthExperience] = useState('5');
   const [authEducation, setAuthEducation] = useState('MBBS / MD');
   const [authLocation, setAuthLocation] = useState('Delhi');
+  const [authAbout, setAuthAbout] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   const [user, setUser] = useState<User|null>(null);
@@ -327,6 +328,7 @@ export default function App(){
     setAuthExperience('5');
     setAuthEducation('MBBS / MD');
     setAuthLocation('Delhi');
+    setAuthAbout('');
     setShowAuthModal(true);
   };
 
@@ -357,18 +359,21 @@ export default function App(){
         return;
       }
 
+      const formattedName = authRole === 'doctor' ? (authName.startsWith('Dr.') ? authName : `Dr. ${authName}`) : authName;
+
       const res = await apiPost('/auth/register', {
-        name: authName,
+        name: formattedName,
         email: authEmail,
         password: authPassword,
         role: authRole,
         phone: authPhone,
         specialty: authSpecialty,
-        hospital: authHospital,
-        fee: Number(authFee),
-        experience: Number(authExperience),
-        education: authEducation,
-        location: authLocation
+        hospital: authHospital || 'MedConnect Healthcare Center',
+        fee: Number(authFee) || 800,
+        experience: Number(authExperience) || 5,
+        education: authEducation || 'MBBS / MD',
+        location: authLocation || 'Delhi',
+        about: authAbout || `${formattedName} is a dedicated healthcare specialist.`
       });
       setAuthLoading(false);
 
@@ -1471,155 +1476,267 @@ export default function App(){
 
       {/* AUTHENTICATION MODAL (ROLE SELECTOR: PATIENT / DOCTOR / ADMIN) */}
       {showAuthModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-extrabold text-slate-900">
-                  {authMode === 'login' ? `${authRole === 'doctor' ? 'Doctor' : authRole === 'admin' ? 'Admin' : 'Patient'} Sign In` : `Register ${authRole === 'doctor' ? 'Doctor Account' : 'Patient Account'}`}
-                </h3>
-                <p className="text-slate-500 text-xs">Access your appointment dashboard & clinical portal</p>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-[2rem] max-w-lg w-full p-5 sm:p-7 border border-slate-100 shadow-2xl animate-in fade-in zoom-in-95 duration-200 my-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0E7C8C] to-teal-700 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
+                  {authRole === 'doctor' ? <Stethoscope className="w-5 h-5" /> : authRole === 'admin' ? <ShieldCheck className="w-5 h-5" /> : <UserIcon className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">
+                    {authMode === 'login' 
+                      ? `${authRole === 'doctor' ? 'Doctor' : authRole === 'admin' ? 'Admin' : 'Patient'} Sign In` 
+                      : `Register ${authRole === 'doctor' ? 'Doctor Profile' : 'Patient Account'}`}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
+                    {authRole === 'admin' ? 'Master Hospital Management Portal' : authRole === 'doctor' ? 'Clinical Workspace & Appointments' : 'Book 24x7 Consultations & Access Health Records'}
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setShowAuthModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer">
+              <button onClick={() => setShowAuthModal(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Role Tabs */}
-            <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100 mb-4 text-xs font-bold">
+            {/* Role Selector Tabs */}
+            <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-2xl bg-slate-100/80 mb-4 text-xs font-bold">
               <button 
+                type="button"
                 onClick={() => setAuthRole('patient')}
-                className={`py-2 rounded-lg transition-all cursor-pointer ${authRole === 'patient' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${authRole === 'patient' ? 'bg-white text-slate-900 shadow-md font-extrabold' : 'text-slate-500 hover:text-slate-900'}`}
               >
-                Patient
+                <UserIcon className="w-3.5 h-3.5" />
+                <span>Patient</span>
               </button>
               <button 
+                type="button"
                 onClick={() => setAuthRole('doctor')}
-                className={`py-2 rounded-lg transition-all cursor-pointer ${authRole === 'doctor' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${authRole === 'doctor' ? 'bg-white text-slate-900 shadow-md font-extrabold' : 'text-slate-500 hover:text-slate-900'}`}
               >
-                Doctor
+                <Stethoscope className="w-3.5 h-3.5" />
+                <span>Doctor</span>
               </button>
               <button 
+                type="button"
                 onClick={() => { setAuthRole('admin'); setAuthMode('login'); }}
-                className={`py-2 rounded-lg transition-all cursor-pointer ${authRole === 'admin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`py-2 px-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${authRole === 'admin' ? 'bg-white text-slate-900 shadow-md font-extrabold' : 'text-slate-500 hover:text-slate-900'}`}
               >
-                Admin
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin</span>
               </button>
             </div>
 
-            {/* Mode Switch (Sign In vs Register) */}
+            {/* Admin Credentials Info Banner */}
+            {authRole === 'admin' && (
+              <div className="p-3.5 rounded-2xl bg-teal-50/80 border border-teal-200/80 text-teal-950 text-xs mb-4 space-y-1 shadow-sm">
+                <div className="flex items-center gap-2 font-black text-teal-800">
+                  <ShieldCheck className="w-4 h-4 text-[#0E7C8C]" />
+                  <span>Master Admin Portal Sign In Credentials</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 font-medium">
+                  <div>
+                    <span className="text-[10px] text-teal-700 uppercase tracking-wider block font-bold">Email</span>
+                    <strong className="font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-teal-200 inline-block font-bold">abhinav1@gmail.com</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-teal-700 uppercase tracking-wider block font-bold">Password</span>
+                    <strong className="font-mono text-slate-900 bg-white px-2 py-0.5 rounded border border-teal-200 inline-block font-bold">12345</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mode Switcher (Sign In vs Register) */}
             {authRole !== 'admin' && (
-              <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-50 border border-slate-200/80 mb-4 text-xs font-bold">
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100/60 border border-slate-200/60 mb-4 text-xs font-bold">
                 <button 
+                  type="button"
                   onClick={() => setAuthMode('login')}
-                  className={`py-1.5 rounded-lg transition-all cursor-pointer ${authMode === 'login' ? 'bg-[#0E7C8C] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`py-2 rounded-lg transition-all cursor-pointer ${authMode === 'login' ? 'bg-[#0E7C8C] text-white shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   Sign In
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setAuthMode('signup')}
-                  className={`py-1.5 rounded-lg transition-all cursor-pointer ${authMode === 'signup' ? 'bg-[#0E7C8C] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`py-2 rounded-lg transition-all cursor-pointer ${authMode === 'signup' ? 'bg-[#0E7C8C] text-white shadow-md font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   Create Account
                 </button>
               </div>
             )}
 
-            <form onSubmit={handleAuthSubmit} className="space-y-3">
+            <form onSubmit={handleAuthSubmit} className="space-y-3.5">
               {authMode === 'signup' && (
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Full Name</label>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                    <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{authRole === 'doctor' ? 'Doctor Full Name' : 'Full Name'}</span>
+                  </label>
                   <input 
                     type="text" required
                     value={authName} onChange={e => setAuthName(e.target.value)}
-                    placeholder="Enter full name"
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                    placeholder={authRole === 'doctor' ? 'e.g. Dr. Ramesh Sharma' : 'e.g. Rahul Sharma'}
+                    className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                   />
                 </div>
               )}
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Email Address</label>
-                <input 
-                  type="email" required
-                  value={authEmail} onChange={e => setAuthEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
-                />
+              <div className={authMode === 'signup' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Email Address</span>
+                  </label>
+                  <input 
+                    type="email" required
+                    value={authEmail} onChange={e => setAuthEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Password</span>
+                  </label>
+                  <input 
+                    type="password" required
+                    value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Password</label>
-                <input 
-                  type="password" required
-                  value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
-                />
-              </div>
+              {authMode === 'signup' && (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Phone Number</span>
+                  </label>
+                  <input 
+                    type="tel"
+                    value={authPhone} onChange={e => setAuthPhone(e.target.value)}
+                    placeholder="+91 98765 43210"
+                    className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
+                  />
+                </div>
+              )}
 
+              {/* DOCTOR SPECIFIC REGISTRATION FIELDS */}
               {authMode === 'signup' && authRole === 'doctor' && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 pt-1 border-t border-slate-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Specialty</label>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Medical Specialty</span>
+                      </label>
                       <select 
                         value={authSpecialty} onChange={e => setAuthSpecialty(e.target.value as Specialty)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                       >
                         {SPECIALTIES.filter(s => s.name !== 'All Specialties').map(s => (
                           <option key={s.name} value={s.name}>{s.name}</option>
                         ))}
                       </select>
                     </div>
+
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Fee (₹)</label>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Medical Degree / Qualifications</span>
+                      </label>
                       <input 
-                        type="number" required
-                        value={authFee} onChange={e => setAuthFee(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                        type="text" required
+                        value={authEducation} onChange={e => setAuthEducation(e.target.value)}
+                        placeholder="e.g. MBBS, MD (Cardiology)"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Experience (Years)</label>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Experience (Years)</span>
+                      </label>
                       <input 
-                        type="number" required
+                        type="number" min="0" max="60" required
                         value={authExperience} onChange={e => setAuthExperience(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                        placeholder="e.g. 10"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                       />
                     </div>
+
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Location / City</label>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <DollarSign className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Consultation Fee (₹)</span>
+                      </label>
+                      <input 
+                        type="number" min="100" max="10000" step="50" required
+                        value={authFee} onChange={e => setAuthFee(e.target.value)}
+                        placeholder="e.g. 1000"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Hospital / Medical Center</span>
+                      </label>
+                      <input 
+                        type="text" required
+                        value={authHospital} onChange={e => setAuthHospital(e.target.value)}
+                        placeholder="e.g. Apollo Hospital"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Location / City</span>
+                      </label>
                       <input 
                         type="text" required
                         value={authLocation} onChange={e => setAuthLocation(e.target.value)}
                         placeholder="e.g. Delhi"
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                        className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Hospital / Clinic Center</label>
-                    <input 
-                      type="text" required
-                      value={authHospital} onChange={e => setAuthHospital(e.target.value)}
-                      placeholder="e.g. Apollo Healthcare Center"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#0E7C8C]"
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Professional Bio / About Summary</span>
+                    </label>
+                    <textarea 
+                      rows={2}
+                      value={authAbout} onChange={e => setAuthAbout(e.target.value)}
+                      placeholder="Summarize your clinical expertise and background..."
+                      className="w-full p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#0E7C8C] focus:ring-2 focus:ring-[#0E7C8C]/20 transition-all font-medium"
                     />
                   </div>
-                </>
+                </div>
               )}
 
               <button 
                 type="submit" 
                 disabled={authLoading}
-                className="w-full py-3 rounded-xl bg-[#0E7C8C] text-white font-bold text-xs hover:bg-[#0A626F] transition-all shadow-md mt-2 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0E7C8C] to-teal-700 hover:from-[#0A626F] hover:to-teal-800 text-white font-black text-xs sm:text-sm transition-all shadow-lg hover:shadow-xl mt-3 flex items-center justify-center gap-2 cursor-pointer"
               >
-                {authLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (authMode === 'login' ? `Sign In as ${authRole}` : `Register as ${authRole}`)}
+                {authLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : (authMode === 'login' ? `Sign In as ${authRole === 'doctor' ? 'Doctor' : authRole === 'admin' ? 'Admin' : 'Patient'}` : `Register as ${authRole === 'doctor' ? 'Doctor' : 'Patient'}`)}
               </button>
             </form>
           </div>
