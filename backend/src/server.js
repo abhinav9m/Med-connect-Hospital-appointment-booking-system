@@ -115,6 +115,35 @@ app.listen(PORT, async () => {
         console.log('✅ Default Abhinav Admin created in MongoDB Atlas');
       }
 
+      const demoPatient = await User.findOne({ email: 'patient@demo.com' });
+      if (!demoPatient) {
+        const passHash = await bcrypt.hash('demo123', 10);
+        await User.create({
+          name: 'Demo Patient',
+          email: 'patient@demo.com',
+          password: passHash,
+          role: 'patient',
+          phone: '+91 98765 43210'
+        });
+        console.log('✅ Demo Patient created in MongoDB Atlas');
+      }
+
+      const demoDoctor = await User.findOne({ email: 'doctor@demo.com' });
+      if (!demoDoctor) {
+        const passHash = await bcrypt.hash('demo123', 10);
+        await User.create({
+          name: 'Dr. Sarah Mitchell',
+          email: 'doctor@demo.com',
+          password: passHash,
+          role: 'doctor',
+          phone: '+91 98765 12345',
+          doctorId: 'd1',
+          specialty: 'Cardiology',
+          hospital: 'MedConnect Care Center'
+        });
+        console.log('✅ Demo Doctor created in MongoDB Atlas');
+      }
+
     } catch (err) {
       console.warn('⚠️ MongoDB Atlas Connection Error:', err.message);
       console.log('⚡ Attempting MySQL / Fallback DB initialization...');
